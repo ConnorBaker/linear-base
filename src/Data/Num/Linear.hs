@@ -16,21 +16,28 @@
 -- hierarchy:
 --
 -- * Additive ⊆ AddIdentity ⊆ AdditiveGroup
--- * MultIdentity ⊆ MultIdentity
+-- * Multiplicative ⊆ MultIdentity ⊆ MultiplicativeGroup
 -- * (AddIdentity ∩ MultIdentity) ⊆ Semiring
 -- * (AdditiveGroup ∩ Semiring) ⊆ Ring
+-- * (AdditiveGroup ∩ MultiplicativeGroup) ⊆ Field
 -- * (FromInteger ∩ Ring) ⊆ Num
+-- * (FromRational ∩ Field) ⊆ Fractional ⊆ Floating
 module Data.Num.Linear
   ( -- * Num and sub-classes
     Num (..),
+    Fractional,
+    Floating (..),
     Additive (..),
     AddIdentity (..),
     AdditiveGroup (..),
     Multiplicative (..),
     MultIdentity (..),
+    MultiplicativeGroup (..),
     Semiring,
     Ring,
+    Field,
     FromInteger (..),
+    FromRational (..),
 
     -- * Mechanisms for deriving instances
     Adding (..),
@@ -82,6 +89,16 @@ class Multiplicative a where
 class (Multiplicative a) => MultIdentity a where
   one :: a
 
+-- | A 'MultIdentity' with inverses that satisfies
+-- the laws of an [abelian group](https://en.wikipedia.org/wiki/Abelian_group)
+class (MultIdentity a) => MultiplicativeGroup a where
+  {-# MINIMAL recip | (/) #-}
+  recip :: a %1 -> a
+  recip x = one / x
+  (/) :: a %1 -> a %1 -> a
+  infixl 7 / -- same fixity as base.*
+  x / y = x * recip y
+
 -- | A [semiring](https://en.wikipedia.org/wiki/Semiring) class. This is
 -- basically a numeric type with mutliplication, addition and with identities
 -- for each. The laws:
@@ -98,6 +115,8 @@ class (AddIdentity a, MultIdentity a) => Semiring a
 -- along with distributive laws.
 class (AdditiveGroup a, Semiring a) => Ring a
 
+class (AdditiveGroup a, MultiplicativeGroup a) => Field a
+
 -- | A numeric type that 'Integer's can be embedded into while satisfying
 -- all the typeclass laws @Integer@s obey. That is, if there's some property
 -- like commutivity of integers @x + y == y + x@, then we must have:
@@ -108,6 +127,9 @@ class (AdditiveGroup a, Semiring a) => Ring a
 class FromInteger a where
   fromInteger :: Prelude.Integer %1 -> a
 
+class FromRational a where
+  fromRational :: Prelude.Rational %1 -> a
+
 -- XXX: subclass of Prelude.Num? subclass of Eq?
 class (Ring a, FromInteger a) => Num a where
   {-# MINIMAL abs, signum #-}
@@ -116,34 +138,84 @@ class (Ring a, FromInteger a) => Num a where
   abs :: a %1 -> a
   signum :: a %1 -> a
 
-newtype MovableNum a = MovableNum a
-  deriving (Consumable, Dupable, Movable, Prelude.Num)
+class (Field a, FromRational a) => Fractional a
 
-instance (Movable a, Prelude.Num a) => Additive (MovableNum a) where
+-- | Trigonometric and hyperbolic functions and related functions.
+--
+-- The Haskell Report defines no laws for 'Floating'. However, @('+')@, @('*')@
+-- and 'exp' are customarily expected to define an exponential field and have
+-- the following properties:
+--
+-- * @exp (a + b)@ = @exp a * exp b@
+-- * @exp (fromInteger 0)@ = @fromInteger 1@
+class (Fractional a) => Floating a where
+  pi :: a
+  exp, log, sqrt :: a %1 -> a
+  (**), logBase :: a %1 -> a %1 -> a
+  sin, cos, tan :: a %1 -> a
+  asin, acos, atan :: a %1 -> a
+  sinh, cosh, tanh :: a %1 -> a
+  asinh, acosh, atanh :: a %1 -> a
+
+newtype MoveableFloating a = MoveableFloating a
+  deriving (Consumable, Dupable, Movable, Prelude.Num, Prelude.Fractional, Prelude.Floating)
+
+instance (Movable a, Prelude.Num a) => Additive (MoveableFloating a) where
   (+) = liftU2 (Prelude.+)
 
-instance (Movable a, Prelude.Num a) => AddIdentity (MovableNum a) where
-  zero = MovableNum 0
+instance (Movable a, Prelude.Num a) => AddIdentity (MoveableFloating a) where
+  zero = MoveableFloating 0
 
-instance (Movable a, Prelude.Num a) => AdditiveGroup (MovableNum a) where
+instance (Movable a, Prelude.Num a) => AdditiveGroup (MoveableFloating a) where
   (-) = liftU2 (Prelude.-)
 
-instance (Movable a, Prelude.Num a) => Multiplicative (MovableNum a) where
+instance (Movable a, Prelude.Num a) => Multiplicative (MoveableFloating a) where
   (*) = liftU2 (Prelude.*)
 
-instance (Movable a, Prelude.Num a) => MultIdentity (MovableNum a) where
-  one = MovableNum 1
+instance (Movable a, Prelude.Num a) => MultIdentity (MoveableFloating a) where
+  one = MoveableFloating 1
 
-instance (Movable a, Prelude.Num a) => Semiring (MovableNum a)
+instance (Movable a, Prelude.Fractional a) => MultiplicativeGroup (MoveableFloating a) where
+  recip = liftU Prelude.recip
+  (/) = liftU2 (Prelude./)
 
-instance (Movable a, Prelude.Num a) => Ring (MovableNum a)
+instance (Movable a, Prelude.Num a) => Semiring (MoveableFloating a)
 
-instance (Movable a, Prelude.Num a) => FromInteger (MovableNum a) where
+instance (Movable a, Prelude.Num a) => Ring (MoveableFloating a)
+
+instance (Movable a, Prelude.Fractional a) => Field (MoveableFloating a)
+
+instance (Movable a, Prelude.Num a) => FromInteger (MoveableFloating a) where
   fromInteger = Unsafe.toLinear Prelude.fromInteger
 
-instance (Movable a, Prelude.Num a) => Num (MovableNum a) where
+instance (Movable a, Prelude.Fractional a) => FromRational (MoveableFloating a) where
+  fromRational = Unsafe.toLinear Prelude.fromRational
+
+instance (Movable a, Prelude.Num a) => Num (MoveableFloating a) where
   abs = liftU Prelude.abs
   signum = liftU Prelude.signum
+
+instance (Movable a, Prelude.Fractional a) => Fractional (MoveableFloating a)
+
+instance (Movable a, Prelude.Floating a) => Floating (MoveableFloating a) where
+  pi = Prelude.pi
+  exp = liftU Prelude.exp
+  log = liftU Prelude.log
+  sqrt = liftU Prelude.sqrt
+  (**) = liftU2 (Prelude.**)
+  logBase = liftU2 Prelude.logBase
+  sin = liftU Prelude.sin
+  cos = liftU Prelude.cos
+  tan = liftU Prelude.tan
+  asin = liftU Prelude.asin
+  acos = liftU Prelude.acos
+  atan = liftU Prelude.atan
+  sinh = liftU Prelude.sinh
+  cosh = liftU Prelude.cosh
+  tanh = liftU Prelude.tanh
+  asinh = liftU Prelude.asinh
+  acosh = liftU Prelude.acosh
+  atanh = liftU Prelude.atanh
 
 liftU :: (Movable a) => (a -> b) %1 -> (a %1 -> b)
 liftU f x = lifted f (move x)
@@ -212,142 +284,152 @@ instance (AddIdentity a) => Monoid (Sum a) where
   mempty = Sum zero
 
 {- ORMOLU_DISABLE -}
-deriving via MovableNum Prelude.Int instance Additive Prelude.Int
-deriving via MovableNum Prelude.Int instance AddIdentity Prelude.Int
-deriving via MovableNum Prelude.Int instance AdditiveGroup Prelude.Int
-deriving via MovableNum Prelude.Int instance Multiplicative Prelude.Int
-deriving via MovableNum Prelude.Int instance MultIdentity Prelude.Int
-deriving via MovableNum Prelude.Int instance Semiring Prelude.Int
-deriving via MovableNum Prelude.Int instance Ring Prelude.Int
-deriving via MovableNum Prelude.Int instance FromInteger Prelude.Int
-deriving via MovableNum Prelude.Int instance Num Prelude.Int
+deriving via MoveableFloating Prelude.Int instance Additive Prelude.Int
+deriving via MoveableFloating Prelude.Int instance AddIdentity Prelude.Int
+deriving via MoveableFloating Prelude.Int instance AdditiveGroup Prelude.Int
+deriving via MoveableFloating Prelude.Int instance Multiplicative Prelude.Int
+deriving via MoveableFloating Prelude.Int instance MultIdentity Prelude.Int
+deriving via MoveableFloating Prelude.Int instance Semiring Prelude.Int
+deriving via MoveableFloating Prelude.Int instance Ring Prelude.Int
+deriving via MoveableFloating Prelude.Int instance FromInteger Prelude.Int
+deriving via MoveableFloating Prelude.Int instance Num Prelude.Int
 
-deriving via MovableNum Prelude.Word instance Additive Prelude.Word
-deriving via MovableNum Prelude.Word instance AddIdentity Prelude.Word
-deriving via MovableNum Prelude.Word instance AdditiveGroup Prelude.Word
-deriving via MovableNum Prelude.Word instance Multiplicative Prelude.Word
-deriving via MovableNum Prelude.Word instance MultIdentity Prelude.Word
-deriving via MovableNum Prelude.Word instance Semiring Prelude.Word
-deriving via MovableNum Prelude.Word instance Ring Prelude.Word
-deriving via MovableNum Prelude.Word instance FromInteger Prelude.Word
-deriving via MovableNum Prelude.Word instance Num Prelude.Word
+deriving via MoveableFloating Prelude.Word instance Additive Prelude.Word
+deriving via MoveableFloating Prelude.Word instance AddIdentity Prelude.Word
+deriving via MoveableFloating Prelude.Word instance AdditiveGroup Prelude.Word
+deriving via MoveableFloating Prelude.Word instance Multiplicative Prelude.Word
+deriving via MoveableFloating Prelude.Word instance MultIdentity Prelude.Word
+deriving via MoveableFloating Prelude.Word instance Semiring Prelude.Word
+deriving via MoveableFloating Prelude.Word instance Ring Prelude.Word
+deriving via MoveableFloating Prelude.Word instance FromInteger Prelude.Word
+deriving via MoveableFloating Prelude.Word instance Num Prelude.Word
 
-deriving via MovableNum Prelude.Double instance Additive Prelude.Double
-deriving via MovableNum Prelude.Double instance AddIdentity Prelude.Double
-deriving via MovableNum Prelude.Double instance AdditiveGroup Prelude.Double
-deriving via MovableNum Prelude.Double instance Multiplicative Prelude.Double
-deriving via MovableNum Prelude.Double instance MultIdentity Prelude.Double
-deriving via MovableNum Prelude.Double instance Semiring Prelude.Double
-deriving via MovableNum Prelude.Double instance Ring Prelude.Double
-deriving via MovableNum Prelude.Double instance FromInteger Prelude.Double
-deriving via MovableNum Prelude.Double instance Num Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Additive Prelude.Double
+deriving via MoveableFloating Prelude.Double instance AddIdentity Prelude.Double
+deriving via MoveableFloating Prelude.Double instance AdditiveGroup Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Multiplicative Prelude.Double
+deriving via MoveableFloating Prelude.Double instance MultIdentity Prelude.Double
+deriving via MoveableFloating Prelude.Double instance MultiplicativeGroup Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Semiring Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Ring Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Field Prelude.Double
+deriving via MoveableFloating Prelude.Double instance FromInteger Prelude.Double
+deriving via MoveableFloating Prelude.Double instance FromRational Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Num Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Fractional Prelude.Double
+deriving via MoveableFloating Prelude.Double instance Floating Prelude.Double
 
-deriving via MovableNum Prelude.Float instance Additive Prelude.Float
-deriving via MovableNum Prelude.Float instance AddIdentity Prelude.Float
-deriving via MovableNum Prelude.Float instance AdditiveGroup Prelude.Float
-deriving via MovableNum Prelude.Float instance Multiplicative Prelude.Float
-deriving via MovableNum Prelude.Float instance MultIdentity Prelude.Float
-deriving via MovableNum Prelude.Float instance Semiring Prelude.Float
-deriving via MovableNum Prelude.Float instance Ring Prelude.Float
-deriving via MovableNum Prelude.Float instance FromInteger Prelude.Float
-deriving via MovableNum Prelude.Float instance Num Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Additive Prelude.Float
+deriving via MoveableFloating Prelude.Float instance AddIdentity Prelude.Float
+deriving via MoveableFloating Prelude.Float instance AdditiveGroup Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Multiplicative Prelude.Float
+deriving via MoveableFloating Prelude.Float instance MultIdentity Prelude.Float
+deriving via MoveableFloating Prelude.Float instance MultiplicativeGroup Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Semiring Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Ring Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Field Prelude.Float
+deriving via MoveableFloating Prelude.Float instance FromInteger Prelude.Float
+deriving via MoveableFloating Prelude.Float instance FromRational Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Num Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Fractional Prelude.Float
+deriving via MoveableFloating Prelude.Float instance Floating Prelude.Float
 
-deriving via MovableNum Prelude.Integer instance Additive Prelude.Integer
-deriving via MovableNum Prelude.Integer instance AddIdentity Prelude.Integer
-deriving via MovableNum Prelude.Integer instance AdditiveGroup Prelude.Integer
-deriving via MovableNum Prelude.Integer instance Multiplicative Prelude.Integer
-deriving via MovableNum Prelude.Integer instance MultIdentity Prelude.Integer
-deriving via MovableNum Prelude.Integer instance Semiring Prelude.Integer
-deriving via MovableNum Prelude.Integer instance Ring Prelude.Integer
-deriving via MovableNum Prelude.Integer instance FromInteger Prelude.Integer
-deriving via MovableNum Prelude.Integer instance Num Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance Additive Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance AddIdentity Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance AdditiveGroup Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance Multiplicative Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance MultIdentity Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance Semiring Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance Ring Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance FromInteger Prelude.Integer
+deriving via MoveableFloating Prelude.Integer instance Num Prelude.Integer
 
-deriving via MovableNum Natural instance Additive Natural
-deriving via MovableNum Natural instance AddIdentity Natural
-deriving via MovableNum Natural instance AdditiveGroup Natural
-deriving via MovableNum Natural instance Multiplicative Natural
-deriving via MovableNum Natural instance MultIdentity Natural
-deriving via MovableNum Natural instance Semiring Natural
+deriving via MoveableFloating Natural instance Additive Natural
+deriving via MoveableFloating Natural instance AddIdentity Natural
+deriving via MoveableFloating Natural instance AdditiveGroup Natural
+deriving via MoveableFloating Natural instance Multiplicative Natural
+deriving via MoveableFloating Natural instance MultIdentity Natural
+deriving via MoveableFloating Natural instance Semiring Natural
 -- NOTE: Natural is not a Ring; no element but 0 has an additive inverse.
-deriving via MovableNum Natural instance FromInteger Natural
+deriving via MoveableFloating Natural instance FromInteger Natural
 
-deriving via MovableNum Data.Int.Int8 instance Additive Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance AddIdentity Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance AdditiveGroup Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance Multiplicative Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance MultIdentity Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance Semiring Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance Ring Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance FromInteger Data.Int.Int8
-deriving via MovableNum Data.Int.Int8 instance Num Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance Additive Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance AddIdentity Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance AdditiveGroup Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance Multiplicative Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance MultIdentity Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance Semiring Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance Ring Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance FromInteger Data.Int.Int8
+deriving via MoveableFloating Data.Int.Int8 instance Num Data.Int.Int8
 
-deriving via MovableNum Data.Int.Int16 instance Additive Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance AddIdentity Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance AdditiveGroup Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance Multiplicative Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance MultIdentity Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance Semiring Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance Ring Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance FromInteger Data.Int.Int16
-deriving via MovableNum Data.Int.Int16 instance Num Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance Additive Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance AddIdentity Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance AdditiveGroup Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance Multiplicative Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance MultIdentity Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance Semiring Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance Ring Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance FromInteger Data.Int.Int16
+deriving via MoveableFloating Data.Int.Int16 instance Num Data.Int.Int16
 
-deriving via MovableNum Data.Int.Int32 instance Additive Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance AddIdentity Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance AdditiveGroup Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance Multiplicative Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance MultIdentity Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance Semiring Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance Ring Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance FromInteger Data.Int.Int32
-deriving via MovableNum Data.Int.Int32 instance Num Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance Additive Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance AddIdentity Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance AdditiveGroup Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance Multiplicative Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance MultIdentity Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance Semiring Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance Ring Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance FromInteger Data.Int.Int32
+deriving via MoveableFloating Data.Int.Int32 instance Num Data.Int.Int32
 
-deriving via MovableNum Data.Int.Int64 instance Additive Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance AddIdentity Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance AdditiveGroup Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance Multiplicative Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance MultIdentity Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance Semiring Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance Ring Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance FromInteger Data.Int.Int64
-deriving via MovableNum Data.Int.Int64 instance Num Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance Additive Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance AddIdentity Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance AdditiveGroup Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance Multiplicative Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance MultIdentity Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance Semiring Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance Ring Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance FromInteger Data.Int.Int64
+deriving via MoveableFloating Data.Int.Int64 instance Num Data.Int.Int64
 
-deriving via MovableNum Data.Word.Word8 instance Additive Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance AddIdentity Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance AdditiveGroup Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance Multiplicative Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance MultIdentity Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance Semiring Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance Ring Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance FromInteger Data.Word.Word8
-deriving via MovableNum Data.Word.Word8 instance Num Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance Additive Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance AddIdentity Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance AdditiveGroup Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance Multiplicative Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance MultIdentity Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance Semiring Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance Ring Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance FromInteger Data.Word.Word8
+deriving via MoveableFloating Data.Word.Word8 instance Num Data.Word.Word8
 
-deriving via MovableNum Data.Word.Word16 instance Additive Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance AddIdentity Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance AdditiveGroup Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance Multiplicative Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance MultIdentity Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance Semiring Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance Ring Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance FromInteger Data.Word.Word16
-deriving via MovableNum Data.Word.Word16 instance Num Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance Additive Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance AddIdentity Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance AdditiveGroup Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance Multiplicative Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance MultIdentity Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance Semiring Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance Ring Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance FromInteger Data.Word.Word16
+deriving via MoveableFloating Data.Word.Word16 instance Num Data.Word.Word16
 
-deriving via MovableNum Data.Word.Word32 instance Additive Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance AddIdentity Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance AdditiveGroup Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance Multiplicative Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance MultIdentity Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance Semiring Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance Ring Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance FromInteger Data.Word.Word32
-deriving via MovableNum Data.Word.Word32 instance Num Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance Additive Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance AddIdentity Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance AdditiveGroup Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance Multiplicative Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance MultIdentity Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance Semiring Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance Ring Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance FromInteger Data.Word.Word32
+deriving via MoveableFloating Data.Word.Word32 instance Num Data.Word.Word32
 
-deriving via MovableNum Data.Word.Word64 instance Additive Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance AddIdentity Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance AdditiveGroup Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance Multiplicative Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance MultIdentity Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance Semiring Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance Ring Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance FromInteger Data.Word.Word64
-deriving via MovableNum Data.Word.Word64 instance Num Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance Additive Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance AddIdentity Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance AdditiveGroup Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance Multiplicative Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance MultIdentity Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance Semiring Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance Ring Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance FromInteger Data.Word.Word64
+deriving via MoveableFloating Data.Word.Word64 instance Num Data.Word.Word64
 {- ORMOLU_ENABLE -}

@@ -56,8 +56,6 @@ module Prelude.Linear
     module Data.Num.Linear,
     Prelude.Real (..),
     Prelude.Integral (..),
-    Prelude.Floating (..),
-    Prelude.Fractional (..),
     Prelude.RealFrac (..),
     Prelude.RealFloat (..),
 
