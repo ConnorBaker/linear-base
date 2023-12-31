@@ -155,6 +155,7 @@ test-suite test
         Test.Data.Mutable.Vector
         Test.Data.Mutable.HashMap
         Test.Data.Mutable.Set
+        Test.Data.Num.Literal
         Test.Data.Polarized
         Test.Data.V
         Test.Data.Replicator
@@ -170,6 +171,7 @@ test-suite test
         hedgehog,
         tasty,
         tasty-hedgehog >= 1.2,
+        tasty-hunit,
         mmorph,
         vector
 

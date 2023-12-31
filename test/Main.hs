@@ -8,6 +8,7 @@ import Test.Data.Mutable.Array (mutArrTests)
 import Test.Data.Mutable.HashMap (mutHMTests)
 import Test.Data.Mutable.Set (mutSetTests)
 import Test.Data.Mutable.Vector (mutVecTests)
+import Test.Data.Num.Literal (numLiteralTests)
 import Test.Data.Polarized (polarizedArrayTests)
 import Test.Data.Replicator (replicatorInspectionTests)
 import Test.Data.V (vInspectionTests)
@@ -26,6 +27,7 @@ allTests =
           mutVecTests,
           mutHMTests,
           mutSetTests,
+          numLiteralTests,
           destArrayTests,
           polarizedArrayTests
         ],
